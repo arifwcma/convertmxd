@@ -1,28 +1,22 @@
 import arcpy
 
-def traverse_layers(map_obj, parent=None, visited=None):
-    if parent is None:
-        print("Top level")
-    else:
-        print("Parent is: ", parent.longName)
-    if visited is None:
-        visited = set()
+def build_layer_hierarchy(map_obj):
+    all_layers = map_obj.listLayers()
+    result = []
 
-    children = []
-    if parent is None:
-        children = [lyr for lyr in map_obj.listLayers() if lyr.longName.count("\\") == 0]
-    else:
-        children = map_obj.listLayers(parent)
+    for i, lyr in enumerate(all_layers):
+        parts = lyr.longName.split("\\")
+        if not lyr.isGroupLayer:
+            result.append({
+                "layer": lyr,
+                "name": lyr.name,
+                "longName": lyr.longName,
+                "path": parts,
+                "depth": len(parts),
+                "index": i
+            })
 
-    print(len(children)," Children: ", [child.longName for child in children])
-
-    for lyr in children:
-        if lyr.longName in visited:
-            continue
-        visited.add(lyr.longName)
-        print("Finished visiting ",lyr.longName)
-        if lyr.isGroupLayer:
-            traverse_layers(map_obj, parent=lyr, visited=visited)
+    return result
 
 def main():
     mxd_path = r"C:\Files\MXDs\IPAWS_Floodplain_.mxd"
@@ -32,7 +26,9 @@ def main():
 
     for m in aprx.listMaps():
         print(f"Map: {m.name}")
-        traverse_layers(m)
+        leaf_layers = build_layer_hierarchy(m)
+        for entry in leaf_layers:
+            print(" > ".join(entry["path"]))
 
     aprx.saveACopy(r"C:\Files\dest.aprx")
 

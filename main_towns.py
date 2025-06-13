@@ -1,47 +1,79 @@
 import arcpy
 
-aprx = arcpy.mp.ArcGISProject(r"C:\Files\old\blank.aprx")
-aprx.importDocument(r"C:\Files\old\20250520_VLP_Boundaries.mxd")
-sde_path = r"C:\Files\old\MXDs\blank\PostgreSQL-gisap01-sdc(gisuser)2.sde"
+def build_leaf_layer_dict(map_obj):
+    all_layers = map_obj.listLayers()
+    result = []
+    for i, lyr in enumerate(all_layers):
+        parts = lyr.longName.split("\\")
+        if not lyr.isGroupLayer:
+            result.append({
+                "layer": lyr,
+                "name": lyr.name,
+                "longName": lyr.longName,
+                "path": parts,
+                "depth": len(parts),
+                "index": i
+            })
+    return result
 
-def resolve_group(map_obj, path_parts):
+def find_group_layer(map_obj, path_parts):
     current = None
     for part in path_parts:
         candidates = map_obj.listLayers(current) if current else map_obj.listLayers()
         current = next((g for g in candidates if g.isGroupLayer and g.name == part), None)
         if current is None:
-            return None
+            break
     return current
 
-for m in aprx.listMaps():
-    for lyr in m.listLayers():
-        if lyr.name == "Main towns":
-            try:
-                path_parts = lyr.longName.split("\\")[:-1]
-                group = resolve_group(m, path_parts)
+def main():
+    mxd_path = r"C:\Files\MXDs\IPAWS_Floodplain_.mxd"
+    blank_aprx = r"C:\Files\old\blank.aprx"
 
-                print(f"Found 'Main towns' under: {' > '.join(path_parts) if path_parts else '[Top Level]'}")
+    aprx = arcpy.mp.ArcGISProject(blank_aprx)
+    aprx.importDocument(mxd_path)
 
-                new_lyr = arcpy.MakeQueryLayer_management(
-                    input_database=sde_path,
-                    out_layer_name="Main towns",
-                    query="SELECT * FROM vicmap.lite_locality WHERE _wcma_int=true AND hierarchy<7",
-                    oid_fields="ogc_fid",
-                    shape_type="POINT",
-                    srid=3111
-                )[0]
+    for m in aprx.listMaps():
+        layers = build_leaf_layer_dict(m)
+        target = None
+        for entry in layers:
+            if entry["name"] == "Major Towns":
+                target = entry
+                break
 
-                if group:
-                    m.addLayerToGroup(group, new_lyr, "BOTTOM")
-                    print("Inserted into group:", group.name)
-                else:
-                    m.addLayer(new_lyr)
-                    print("Inserted at top level")
+        if not target:
+            print("Major Towns not found")
+            continue
 
-                m.removeLayer(lyr)
-                print("Removed broken layer")
+        group_path = target["path"][:-1]
+        group_layer = find_group_layer(m, group_path)
+        siblings = m.listLayers(group_layer)
 
-            except Exception as e:
-                print("Fix failed:", e)
+        target_index = -1
+        for i, lyr in enumerate(siblings):
+            if lyr.name == "Major Towns":
+                target_index = i
+                break
 
-aprx.saveACopy(r"C:\Files\dest.aprx")
+        if target_index == -1:
+            print("Layer found in path but not as sibling — skipping")
+            continue
+
+        m.removeLayer(target["layer"])
+        print("Removed original Major Towns")
+
+        dummy_fc = arcpy.management.CreateFeatureclass(
+            out_path="in_memory",
+            out_name="major_towns_dummy",
+            geometry_type="POINT",
+            spatial_reference=4326
+        )[0]
+        new_layer = arcpy.MakeFeatureLayer_management(dummy_fc, "Major Towns")[0]
+
+        reference_layer = siblings[target_index - 1] if target_index > 0 else None
+        m.insertLayer(group_layer, reference_layer, new_layer, "AFTER")
+        print("Inserted new dummy Major Towns in:", " > ".join(group_path))
+
+    aprx.saveACopy(r"C:\Files\dest.aprx")
+
+if __name__ == "__main__":
+    main()

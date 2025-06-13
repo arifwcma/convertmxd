@@ -28,6 +28,7 @@ def find_group_layer(map_obj, path_parts):
 def main():
     mxd_path = r"C:\Files\MXDs\IPAWS_Floodplain_.mxd"
     blank_aprx = r"C:\Files\old\blank.aprx"
+    shapefile_path = r"C:\Files\shapes\lw\Landscape_Wetlands.shp"
 
     aprx = arcpy.mp.ArcGISProject(blank_aprx)
     aprx.importDocument(mxd_path)
@@ -61,17 +62,12 @@ def main():
         m.removeLayer(target["layer"])
         print("Removed original Major Towns")
 
-        dummy_fc = arcpy.management.CreateFeatureclass(
-            out_path="in_memory",
-            out_name="major_towns_dummy",
-            geometry_type="POINT",
-            spatial_reference=4326
-        )[0]
-        new_layer = arcpy.MakeFeatureLayer_management(dummy_fc, "Major Towns")[0]
+        new_layer = m.addDataFromPath(shapefile_path)
+        new_layer.name = "Major Towns"
 
         reference_layer = siblings[target_index - 1] if target_index > 0 else None
         m.insertLayer(group_layer, reference_layer, new_layer, "AFTER")
-        print("Inserted new dummy Major Towns in:", " > ".join(group_path))
+        print("Inserted new 'Major Towns' layer from shapefile into:", " > ".join(group_path))
 
     aprx.saveACopy(r"C:\Files\dest.aprx")
 

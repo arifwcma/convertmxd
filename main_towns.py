@@ -4,10 +4,24 @@ aprx = arcpy.mp.ArcGISProject(r"C:\Files\old\blank.aprx")
 aprx.importDocument(r"C:\Files\old\20250520_VLP_Boundaries.mxd")
 sde_path = r"C:\Files\old\MXDs\blank\PostgreSQL-gisap01-sdc(gisuser)2.sde"
 
+def resolve_group(map_obj, path_parts):
+    current = None
+    for part in path_parts:
+        candidates = map_obj.listLayers(current) if current else map_obj.listLayers()
+        current = next((g for g in candidates if g.isGroupLayer and g.name == part), None)
+        if current is None:
+            return None
+    return current
+
 for m in aprx.listMaps():
     for lyr in m.listLayers():
         if lyr.name == "Main towns":
             try:
+                path_parts = lyr.longName.split("\\")[:-1]
+                group = resolve_group(m, path_parts)
+
+                print(f"Found 'Main towns' under: {' > '.join(path_parts) if path_parts else '[Top Level]'}")
+
                 new_lyr = arcpy.MakeQueryLayer_management(
                     input_database=sde_path,
                     out_layer_name="Main towns",
@@ -17,22 +31,17 @@ for m in aprx.listMaps():
                     srid=3111
                 )[0]
 
-                parent_group = None
-                for group in m.listLayers():
-                    if group.isGroupLayer:
-                        if lyr.name in [child.name for child in m.listLayers(group)]:
-                            parent_group = group
-                            break
-
-                if parent_group:
-                    m.addLayerToGroup(parent_group, new_lyr, "BOTTOM")
+                if group:
+                    m.addLayerToGroup(group, new_lyr, "BOTTOM")
+                    print("Inserted into group:", group.name)
                 else:
                     m.addLayer(new_lyr)
+                    print("Inserted at top level")
 
                 m.removeLayer(lyr)
-                print("Main towns fixed")
+                print("Removed broken layer")
 
             except Exception as e:
-                print(f"Failed to fix Main towns: {e}")
+                print("Fix failed:", e)
 
 aprx.saveACopy(r"C:\Files\dest.aprx")

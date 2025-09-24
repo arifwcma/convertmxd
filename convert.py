@@ -1,6 +1,4 @@
 import arcpy
-import os
-import shutil
 
 print("Start")
 src_mxd = r"I:\Admin\Software\ESRI\MapTemplates\WCMA Layouts\Additional_MXDs\Wetlands.mxd"

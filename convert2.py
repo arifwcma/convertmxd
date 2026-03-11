@@ -1,8 +1,8 @@
 import arcpy
 
 print("Start")
-src_mxd = r"C:\Users\m.rahman\mixed\savio\sites\MXDs\Sites_Master.mxd"
-aprx = arcpy.mp.ArcGISProject(r"C:\Users\m.rahman\mixed\savio\sites\blank\blank.aprx")
+src_mxd = r"C:\Users\m.rahman\arcmap\Community_RAP_all_A6.mxd"
+aprx = arcpy.mp.ArcGISProject(r"C:\Users\m.rahman\arcgis\rcs_fig1\rcs_fig1.aprx")
 aprx.importDocument(src_mxd)
-aprx.saveACopy(fr"I:\Programs\RCS\2020\Maps\APRX_Wetlands\APRX_Wetlands.aprx")
+aprx.saveACopy(fr"C:\Users\m.rahman\arcgis\rcs_fig1\rcs_fig1_complete.aprx")
 print("End")
